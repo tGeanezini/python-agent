@@ -1,7 +1,10 @@
+import json
 import os
 import argparse
 from dotenv import load_dotenv
 from openai import OpenAI
+from functions.call_function import available_functions
+from prompts import system_prompt
 
 load_dotenv()
 api_key = os.environ.get("OPENROUTER_API_KEY")
@@ -15,6 +18,7 @@ parser.add_argument("--verbose", action="store_true", help="Enable verbose outpu
 args = parser.parse_args()
 
 messages = [
+    {"role": "system", "content": system_prompt},
     {"role": "user", "content": args.user_prompt},
 ]
 
@@ -28,6 +32,7 @@ def generate_messages(messages, client):
     response = client.chat.completions.create(
         model="openrouter/free",
         messages=messages,
+        tools=available_functions,
     )
 
     if response.usage is None:
@@ -40,7 +45,11 @@ def generate_messages(messages, client):
             + f"Response tokens: {response.usage.completion_tokens}"
         )
 
-    print(response.choices[0].message.content)
+    message = response.choices[0].message
+
+    for tool_call in message.tool_calls:
+        function_args = json.loads(tool_call.function.arguments or "{}")
+        print(f"Calling function: {tool_call.function.name}({function_args})")
 
 
 generate_messages(messages, client)
